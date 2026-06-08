@@ -5,11 +5,12 @@ export default async function handler(req, res) {
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
-    return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured" });
+    return res.status(500).json({ error: "ANTHROPIC_API_KEY not configured. Go to Vercel → Settings → Environment Variables and add it, then redeploy." });
   }
 
+  let response;
   try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -18,10 +19,24 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify(req.body),
     });
-
-    const data = await response.json();
-    return res.status(200).json(data);
   } catch (err) {
-    return res.status(500).json({ error: "Failed to reach Anthropic API" });
+    return res.status(500).json({ error: `Network error reaching Anthropic: ${err.message}` });
   }
+
+  let data;
+  try {
+    data = await response.json();
+  } catch (err) {
+    return res.status(500).json({ error: `Anthropic returned non-JSON (status ${response.status})` });
+  }
+
+  // Anthropic API errors come back as 4xx/5xx with error field
+  if (!response.ok) {
+    return res.status(response.status).json({
+      error: data?.error?.message || `Anthropic API error: ${response.status}`,
+      type: data?.error?.type || "unknown",
+    });
+  }
+
+  return res.status(200).json(data);
 }

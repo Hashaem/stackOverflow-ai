@@ -136,15 +136,38 @@ export default function Home() {
           messages: [{ role: "user", content: question }],
         }),
       });
+
       const data = await resp.json();
+
+      // Show real API errors
+      if (!resp.ok || data.error) {
+        setError(`API Error: ${data.error || "Unknown error"} (HTTP ${resp.status})`);
+        setLoading(false);
+        return;
+      }
+
       const raw = data.content?.find(b => b.type === "text")?.text || "";
+      if (!raw) {
+        setError(`Empty response from API. Full response: ${JSON.stringify(data).slice(0, 200)}`);
+        setLoading(false);
+        return;
+      }
+
       const clean = raw.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      let parsed;
+      try {
+        parsed = JSON.parse(clean);
+      } catch (parseErr) {
+        setError(`JSON parse failed. Raw response: ${clean.slice(0, 300)}`);
+        setLoading(false);
+        return;
+      }
+
       setResult({ ...parsed, question });
       setHistory(h => [{ q: question, r: parsed }, ...h.slice(0, 9)]);
       if (!q) setQuery("");
     } catch (e) {
-      setError("Something went wrong parsing the response. Please try again.");
+      setError(`Network error: ${e.message}`);
     }
     setLoading(false);
   };
